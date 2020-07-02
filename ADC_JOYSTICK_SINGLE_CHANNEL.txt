@@ -1,0 +1,78 @@
+#include "stm32f10x.h"
+
+volatile int ticks=0;
+volatile int adc_val=0;
+
+void SysTick_Handler(void)
+{
+	ticks++;
+}
+
+void delay_ms(int ms)
+{
+	ticks=0;
+	while(ticks<ms);
+}
+void adc_init(void)
+{
+	RCC->CFGR |= RCC_CFGR_ADCPRE_DIV6;   				//adc prescaler /6 (<14mhz)
+	RCC ->APB2ENR |= RCC_APB2ENR_ADC1EN; 				//clock enable for adc
+	ADC1->CR1 |= ADC_CR1_EOCIE;					//enable end of conversion interrupt
+	NVIC_EnableIRQ(ADC1_2_IRQn);	
+	ADC1->SMPR2 |= ADC_SMPR2_SMP5_2; 		 		//set sampling rate (ch5)
+	
+	// L[3:0] in ADC1_SQR1 TO SET THE NUMBER OF CONVERSIONS (here default 0000 - 1 conv)
+	
+	ADC1->SQR3 |= ADC_SQR3_SQ1_0 | ADC_SQR3_SQ1_2; 			//channel 5 in sequence 1
+	ADC1->CR2  |= ADC_CR2_ADON | ADC_CR2_CONT;     			// turn on adc and set it to continous conversion mode
+	delay_ms(1);
+	ADC1->CR2  |= ADC_CR2_ADON;
+	delay_ms(1);
+	ADC1->CR2  |= ADC_CR2_CAL;  		      		        //run calibration
+	delay_ms(5);
+}
+void pwm_init(void)
+{
+	RCC ->APB1ENR |= RCC_APB1ENR_TIM4EN;	
+	TIM4 ->CCER |= TIM_CCER_CC4E; 						//enable channel 4
+	TIM4 ->CR1 |= TIM_CR1_ARPE;
+  	TIM4 ->CCMR2 |= TIM_CCMR2_OC4M_2 | TIM_CCMR2_OC4M_1 | TIM_CCMR2_OC4PE;  //mode
+	TIM4 ->PSC = 1;
+	TIM4 ->ARR = 4095;
+	TIM4 ->CCR4 = 0;
+	TIM4 ->EGR = TIM_EGR_UG;  						// update registers
+	TIM4 ->CR1 = TIM_CR1_CEN; 						// start timer
+}
+void ADC1_2_IRQHandler(void)
+{
+	adc_val = ADC1->DR;		//fetch value at the end of conversion, automatically clears EOC interrupt bit
+}
+
+int main()
+ {
+	//clock enable for port A and B , and AFIO
+	RCC ->APB2ENR |= RCC_APB2ENR_IOPBEN | RCC_APB2ENR_AFIOEN | RCC_APB2ENR_IOPAEN;
+	
+	//set up gpio B9 alternate function output 10mhz max
+	GPIOB ->CRH &= ~(GPIO_CRH_CNF9_0);
+	GPIOB ->CRH |= GPIO_CRH_MODE9_0 | GPIO_CRH_CNF9_1;
+	
+	//set up gpio A5 as input (A5->adc channel 5)
+	GPIOA->CRL |= GPIO_CRL_CNF5_1;
+	GPIOA->CRL &= ~GPIO_CRL_CNF5_0;
+	GPIOA ->CRL &= ~(GPIO_CRL_MODE5_0 | GPIO_CRL_MODE5_1);
+	
+	//set up systick (1ms per interrupt)
+	SystemCoreClockUpdate();
+	SysTick_Config(SystemCoreClock/1000);
+	
+	pwm_init();
+	adc_init();
+while(1)
+{
+	TIM4->CCR4 = adc_val;
+	delay_ms(10);
+}
+
+ }
+
