@@ -1,0 +1,58 @@
+#include "stm32f10x.h"
+
+volatile int ticks;
+
+void SysTick_Handler(void)
+{
+	ticks++;
+}
+
+void delay_ms(int ms)
+{
+	ticks=0;
+	while(ticks<ms);
+}
+void pwm_init()
+{
+	RCC ->APB1ENR |= RCC_APB1ENR_TIM4EN;	
+	TIM4 ->CCER |= TIM_CCER_CC4E; //enable channel 4
+	TIM4 ->CR1 |= TIM_CR1_ARPE;
+  	TIM4 ->CCMR2 |= TIM_CCMR2_OC4M_2 | TIM_CCMR2_OC4M_1 | TIM_CCMR2_OC4PE; //mode
+	TIM4 ->PSC = 1;
+	TIM4 ->ARR = 1023;
+	TIM4 ->CCR4 = 0;
+	TIM4 ->EGR = TIM_EGR_UG; //update registers
+	TIM4 ->CR1 = TIM_CR1_CEN; // start timer
+}
+
+
+void pwm_duty(int duty)
+{
+	TIM4->CCR4 = (duty*(TIM4->ARR)/100);
+}
+int main()
+{
+	//set up gpio B9 alternate function output 10mhz max
+	RCC ->APB2ENR |= RCC_APB2ENR_IOPBEN | RCC_APB2ENR_AFIOEN;
+	GPIOB ->CRH &= ~(GPIO_CRH_CNF9_0);
+	GPIOB ->CRH |= GPIO_CRH_MODE9_0 | GPIO_CRH_CNF9_1;
+	
+	SystemCoreClockUpdate();
+	SysTick_Config(SystemCoreClock/1000);
+	
+	pwm_init();
+while(1)
+{
+	for(int i = 0; i<=100 ; i++)
+	{
+		pwm_duty(i);
+		delay_ms(10);
+	}
+	for(int i = 100; i>=0 ; i--)
+	{
+		pwm_duty(i);
+		delay_ms(10);
+	}
+}
+}
+
