@@ -63,7 +63,8 @@ int main()
 	
 	//C13 as general purpose pushpull output
 	GPIOC->CRH |= GPIO_CRH_MODE13_1;
-	GPIOC->BSRR = 1<<(13+16);
+	GPIOC->CRH &= ~(GPIO_CRH_CNF13_1 | GPIO_CRH_CNF13_0);
+	
 	SystemCoreClockUpdate();
 	// configure systick to generate interrupt every 1ms
 	SysTick_Config(SystemCoreClock/1000);
