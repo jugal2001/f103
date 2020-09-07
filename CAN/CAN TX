@@ -55,7 +55,8 @@ int main()
 	
 	/***A12 as alternate function output push pull***/
 	GPIOA->CRH |= GPIO_CRH_MODE12_0;
-	GPIOA->CRH |= GPIO_CRH_CNF12_1;		
+	GPIOA->CRH |= GPIO_CRH_CNF12_1;	
+	GPIOA->CRH &= ~GPIO_CRH_CNF12_0;
 	
 	//PIN A11 is floating input by default (CAN RX)
 	
