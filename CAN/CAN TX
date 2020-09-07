@@ -61,6 +61,7 @@ int main()
 	
 	//C13 as general purpose pushpull output
 	GPIOC->CRH |= GPIO_CRH_MODE13_1;
+	GPIOC->CRH &= ~(GPIO_CRH_CNF13_1 | GPIO_CRH_CNF13_0);
 	
 	can_init();
 	
