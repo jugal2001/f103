@@ -22,7 +22,7 @@ void can_init()
 	RCC->APB1ENR |= RCC_APB1ENR_CAN1EN;		//enable clock for CAN1
 	
 	CAN1->MCR |= CAN_MCR_INRQ;			//enter initialization mode , reset later to enter normal mode
-	while(CAN1->MSR & CAN_MSR_INAK);//init mode ack
+	while(!(CAN1->MSR & CAN_MSR_INAK));//init mode ack
 	CAN1->MCR |= CAN_MCR_NART;			//no automatic retransmission
 	
 	//*** 250Kbit/s , PRESCALER 2 , NO OF tq = 16 . seg1 = 13 , seg2 = 2 , SJW = 1tq***//
