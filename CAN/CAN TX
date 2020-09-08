@@ -20,7 +20,8 @@ while(ticks<ms);
 void can_init()
 {
 	RCC->APB1ENR |= RCC_APB1ENR_CAN1EN;		//enable clock for CAN1
-	
+	CAN1->MCR &= ~CAN_MCR_SLEEP;
+	while(CAN1->MSR & CAN_MSR_SLAK); 
 	CAN1->MCR |= CAN_MCR_INRQ;			//enter initialization mode , reset later to enter normal mode
 	while(!(CAN1->MSR & CAN_MSR_INAK));//init mode ack
 	CAN1->MCR |= CAN_MCR_NART;			//no automatic retransmission
