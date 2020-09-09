@@ -43,7 +43,7 @@ void send(void)
 	CAN1->sTxMailBox[0].TIR &= ~(CAN_TI0R_IDE | CAN_TI0R_RTR);			//DATA FRAME , STANDARD IDENTIFIER
 	CAN1->sTxMailBox[0].TIR |= 3<<21;			//IDENTIFIER = 3
 	CAN1->sTxMailBox[0].TDTR |= 1<<0;			//1 byte data
-	CAN1->sTxMailBox[0].TDLR |= 15<<0;			//DATA TO BE SENT IS 15
+	CAN1->sTxMailBox[0].TDLR |= 0x0F;			//DATA TO BE SENT IS 0xF
 	CAN1->sTxMailBox[0].TIR |= CAN_TI0R_TXRQ;			//SEND DATA
 	//CAN1->ESR |= 7<<4;
 	while(!(CAN1->TSR & CAN_TSR_RQCP0))			//WAIT FOR MSG TO BE SENT
@@ -64,8 +64,8 @@ void filter_setup()
 	CAN1->FS1R |= CAN_FS1R_FSC0;								//single 32 bit configuration
 	CAN1->FFA1R &= ~(CAN_FFA1R_FFA0);						//filter bank 0 assigned to FIFO 0
 	CAN1->FA1R |= CAN_FA1R_FACT0;     					//activate filter bank 0
-	CAN1->sFilterRegister[0].FR2 = 0xFFFFFFFF; 	//mask (all 1s)
-	CAN1->sFilterRegister[0].FR1 = 0x3;				 	// ID = 1
+	CAN1->sFilterRegister[0].FR2 = 0; 					//mask =0
+	CAN1->sFilterRegister[0].FR1 = 0x3;				 	// ID = 3
 	CAN1->FMR &= ~(1<<0);
 	delay_ms(10);
 	//ONLY MESSAGES WITH ID 1 WILL BE STORED IN FIFO
@@ -105,14 +105,17 @@ GPIOC->BSRR = 1<<13;
 	{
 	msg = CAN1->sFIFOMailBox[0].RDLR & 0xFF;	//GET DATA
 	CAN1->RF0R |= CAN_RF0R_RFOM0;								//RELEASE MESSAGE FROM FIFO
-	
+	GPIOC->BSRR = 1<<13;
+	delay_ms(500);
+	GPIOC->BSRR = 1<<(13+16);
+	delay_ms(500);
 	}
 	if(msg==0xF)
 	{
-	GPIOC->BSRR = 1<<13;
-	delay_ms(1000);
+	/*GPIOC->BSRR = 1<<13;
+	delay_ms(500);
 	GPIOC->BSRR = 1<<(13+16);
-	delay_ms(1000);
+	delay_ms(500);*/
 	msg=0;
 }
 	
