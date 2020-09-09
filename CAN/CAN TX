@@ -64,13 +64,14 @@ int main()
 	//C13 as general purpose pushpull output
 	GPIOC->CRH |= GPIO_CRH_MODE13_1;
 	GPIOC->CRH &= ~(GPIO_CRH_CNF13_1 | GPIO_CRH_CNF13_0);
-	
+	SystemCoreClockUpdate();
+	SysTick_Config(SystemCoreClock/1000);
 	can_init();
 	
 	
 	while(1)
 {
-		delay_ms(5000);
+		delay_ms(2000);
 		send();
 }
 
