@@ -48,7 +48,6 @@ void filter_setup()
 	CAN1->FMR &= ~(1<<0);
 	delay_ms(10);
 	//ONLY MESSAGES WITH ID 1 WILL BE STORED IN FIFO
-	GPIOC->BSRR = 1<<13;
 	
 }
 
@@ -74,7 +73,6 @@ int main()
 	SysTick_Config(SystemCoreClock/1000);
 	filter_setup();
 	can_init();
-	GPIOC->BSRR = 1<<13;
 	
 	
 	while(1)
