@@ -1,4 +1,4 @@
-//**********CAN TX CODE***************//
+//**********CAN LOOPBACK TEST***************//
 
 #include "stm32f10x.h"
 
