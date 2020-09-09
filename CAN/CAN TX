@@ -44,7 +44,13 @@ void send(void)
 	CAN1->sTxMailBox[0].TDTR |= 1<<0;			//1 byte data
 	CAN1->sTxMailBox[0].TDLR |= 1<<0;			//DATA TO BE SENT IS 1
 	CAN1->sTxMailBox[0].TIR |= CAN_TI0R_TXRQ;			//SEND DATA
-	while(~(CAN1->TSR & CAN_TSR_RQCP0));			//WAIT FOR MSG TO BE SENT
+	CAN1->ESR |= 7<<4;
+	while(~(CAN1->TSR & CAN_TSR_RQCP0))			//WAIT FOR MSG TO BE SENT
+	{
+		if((CAN1->ESR & 0x30)==0x30)
+			GPIOC->BSRR = 1<<13;			//ACK ERROR
+	}
+	
 }
 int main()
 {
@@ -71,8 +77,8 @@ int main()
 	
 	while(1)
 {
-		delay_ms(2000);
-		send();
+	send();
+	delay_ms(2000);
 }
 
 }
