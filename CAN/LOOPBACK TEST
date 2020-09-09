@@ -3,7 +3,7 @@
 #include "stm32f10x.h"
 
 volatile int ticks=0;
-
+volatile int msg=0;
 void SysTick_Handler(void)
 {
 	ticks++;
@@ -114,5 +114,5 @@ int main()
 }
 
 }
-
+}
 
