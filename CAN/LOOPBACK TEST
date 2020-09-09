@@ -1,1 +1,118 @@
+//**********CAN TX CODE***************//
+
+#include "stm32f10x.h"
+
+volatile int ticks=0;
+
+void SysTick_Handler(void)
+{
+	ticks++;
+}
+
+
+void delay_ms(int ms)
+{
+ticks=0;
+while(ticks<ms);
+}
+
+
+void can_init()
+{
+	RCC->APB1ENR |= RCC_APB1ENR_CAN1EN;		//enable clock for CAN1
+	CAN1->MCR &= ~CAN_MCR_SLEEP;
+	while(CAN1->MSR & CAN_MSR_SLAK); 
+	CAN1->MCR |= CAN_MCR_INRQ;			//enter initialization mode , reset later to enter normal mode
+	while(!(CAN1->MSR & CAN_MSR_INAK));//init mode ack
+	//CAN1->MCR |= CAN_MCR_NART;			//no automatic retransmission
+	
+	//*** 250Kbit/s , PRESCALER 2 , NO OF tq = 16 . seg1 = 13 , seg2 = 2 , SJW = 1tq***//
+	CAN1->BTR |= 1<<0;					//Prescaler 2
+	CAN1->BTR|=(1<<19)|(1<<18); //seg1 = 13
+	CAN1->BTR|=(1<<20);					//seg2 = 2
+	// SJW 1 by default
+	CAN1->BTR|= CAN_BTR_LBKM;
+	CAN1->MCR&=~(1<<0);         	 //enter normal mode
+	while(!(CAN1->MSR & CAN_MSR_INAK));  //wait for ack
+
+}
+
+void send(void)
+{
+//***SET UP TX MAILBOX 0***//
+	CAN1->sTxMailBox[0].TIR &= ~(CAN_TI0R_IDE | CAN_TI0R_RTR);			//DATA FRAME , STANDARD IDENTIFIER
+	CAN1->sTxMailBox[0].TIR |= 1<<21;			//IDENTIFIER = 1
+	CAN1->sTxMailBox[0].TDTR |= 1<<0;			//1 byte data
+	CAN1->sTxMailBox[0].TDLR |= 1<<0;			//DATA TO BE SENT IS 1
+	CAN1->sTxMailBox[0].TIR |= CAN_TI0R_TXRQ;			//SEND DATA
+	//CAN1->ESR |= 7<<4;
+	while(~(CAN1->TSR & CAN_TSR_RQCP0))			//WAIT FOR MSG TO BE SENT
+	{
+
+		/*if((CAN1->ESR & 0x30)==0x30)
+			GPIOC->BSRR = 1<<13;			//ACK ERROR*/
+		;
+
+	}
+	
+} 
+
+void filter_setup()
+{
+	CAN1->FMR |= 1<<0;													//filter init mode
+	CAN1->FM1R &= ~CAN_FM1R_FBM0;								//mask mode
+	CAN1->FS1R |= CAN_FS1R_FSC0;								//single 32 bit configuration
+	CAN1->FFA1R &= ~(CAN_FFA1R_FFA0);						//filter bank 0 assigned to FIFO 0
+	CAN1->FA1R |= CAN_FA1R_FACT0;     					//activate filter bank 0
+	CAN1->sFilterRegister[0].FR2 = 0xFFFFFFFF; 	//mask (all 1s)
+	CAN1->sFilterRegister[0].FR1 = 0x1;				 	// ID = 1
+	CAN1->FMR &= ~(1<<0);
+	delay_ms(10);
+	//ONLY MESSAGES WITH ID 1 WILL BE STORED IN FIFO
+	GPIOC->BSRR = 1<<13;
+}
+
+int main()
+{
+	
+	
+	RCC->APB2ENR |= RCC_APB2ENR_IOPAEN | RCC_APB2ENR_AFIOEN | RCC_APB2ENR_IOPCEN;		// enable clocks for port A, C and AFIO
+	
+	//***CAN_TX IS A12 , CAN_RX IS A11 , LED ON C13***//
+	
+	/***A12 as alternate function output push pull***/
+	GPIOA->CRH |= GPIO_CRH_MODE12_0;
+	GPIOA->CRH |= GPIO_CRH_CNF12_1;	
+	GPIOA->CRH &= ~GPIO_CRH_CNF12_0;
+	
+	//PIN A11 is floating input by default (CAN RX)
+	
+	//C13 as general purpose pushpull output
+	GPIOC->CRH |= GPIO_CRH_MODE13_1;
+	GPIOC->CRH &= ~(GPIO_CRH_CNF13_1 | GPIO_CRH_CNF13_0);
+	SystemCoreClockUpdate();
+	SysTick_Config(SystemCoreClock/1000);
+	can_init();
+	filter_setup();
+	
+	while(1)
+{
+	send();
+	delay_ms(2000);
+  msg=0;
+	if(CAN1->RF0R & 0x3)			//if both bits FMP0[1:0] are zero it means no message in FIFO
+	{
+	msg = CAN1->sFIFOMailBox[0].RDLR & 0xFF;	//GET DATA
+	CAN1->RF0R |= CAN_RF0R_RFOM0;								//RELEASE MESSAGE FROM FIFO
+	}
+	if(msg==1)
+	{
+	GPIOC->BSRR = 1<<13;
+	delay_ms(500);
+	GPIOC->BSRR = 1<<(13+16);
+	delay_ms(500);
+}
+
+}
+
 
