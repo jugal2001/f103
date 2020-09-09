@@ -24,7 +24,7 @@ void can_init()
 	while(CAN1->MSR & CAN_MSR_SLAK); 
 	CAN1->MCR |= CAN_MCR_INRQ;			//enter initialization mode , reset later to enter normal mode
 	while(!(CAN1->MSR & CAN_MSR_INAK));//init mode ack
-	//CAN1->MCR |= CAN_MCR_NART;			//no automatic retransmission
+	CAN1->MCR |= CAN_MCR_NART;			//no automatic retransmission
 	
 	//*** 250Kbit/s , PRESCALER 2 , NO OF tq = 16 . seg1 = 13 , seg2 = 2 , SJW = 1tq***//
 	CAN1->BTR |= 1<<0;					//Prescaler 2
@@ -41,12 +41,12 @@ void send(void)
 {
 //***SET UP TX MAILBOX 0***//
 	CAN1->sTxMailBox[0].TIR &= ~(CAN_TI0R_IDE | CAN_TI0R_RTR);			//DATA FRAME , STANDARD IDENTIFIER
-	CAN1->sTxMailBox[0].TIR |= 1<<21;			//IDENTIFIER = 1
+	CAN1->sTxMailBox[0].TIR |= 3<<21;			//IDENTIFIER = 3
 	CAN1->sTxMailBox[0].TDTR |= 1<<0;			//1 byte data
-	CAN1->sTxMailBox[0].TDLR |= 1<<0;			//DATA TO BE SENT IS 1
+	CAN1->sTxMailBox[0].TDLR |= 15<<0;			//DATA TO BE SENT IS 15
 	CAN1->sTxMailBox[0].TIR |= CAN_TI0R_TXRQ;			//SEND DATA
 	//CAN1->ESR |= 7<<4;
-	while(~(CAN1->TSR & CAN_TSR_RQCP0))			//WAIT FOR MSG TO BE SENT
+	while(!(CAN1->TSR & CAN_TSR_RQCP0))			//WAIT FOR MSG TO BE SENT
 	{
 
 		/*if((CAN1->ESR & 0x30)==0x30)
@@ -65,11 +65,11 @@ void filter_setup()
 	CAN1->FFA1R &= ~(CAN_FFA1R_FFA0);						//filter bank 0 assigned to FIFO 0
 	CAN1->FA1R |= CAN_FA1R_FACT0;     					//activate filter bank 0
 	CAN1->sFilterRegister[0].FR2 = 0xFFFFFFFF; 	//mask (all 1s)
-	CAN1->sFilterRegister[0].FR1 = 0x1;				 	// ID = 1
+	CAN1->sFilterRegister[0].FR1 = 0x3;				 	// ID = 1
 	CAN1->FMR &= ~(1<<0);
 	delay_ms(10);
 	//ONLY MESSAGES WITH ID 1 WILL BE STORED IN FIFO
-	GPIOC->BSRR = 1<<13;
+	
 }
 
 int main()
@@ -94,25 +94,28 @@ int main()
 	SysTick_Config(SystemCoreClock/1000);
 	can_init();
 	filter_setup();
-	
+GPIOC->BSRR = 1<<13;
 	while(1)
 {
 	send();
 	delay_ms(2000);
-  msg=0;
+ GPIOC->BSRR = 1<<(13+16);
+	
 	if(CAN1->RF0R & 0x3)			//if both bits FMP0[1:0] are zero it means no message in FIFO
 	{
 	msg = CAN1->sFIFOMailBox[0].RDLR & 0xFF;	//GET DATA
 	CAN1->RF0R |= CAN_RF0R_RFOM0;								//RELEASE MESSAGE FROM FIFO
+	
 	}
-	if(msg==1)
+	if(msg==0xF)
 	{
 	GPIOC->BSRR = 1<<13;
-	delay_ms(500);
+	delay_ms(1000);
 	GPIOC->BSRR = 1<<(13+16);
-	delay_ms(500);
+	delay_ms(1000);
+	msg=0;
 }
-
+	
 }
 }
 
