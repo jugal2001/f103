@@ -47,8 +47,9 @@ void send(void)
 	CAN1->ESR |= 7<<4;
 	while(!(CAN1->TSR & CAN_TSR_RQCP0))			//WAIT FOR MSG TO BE SENT
 	{
-		if((CAN1->ESR & 0x30)==0x30)
-			GPIOC->BSRR = 1<<13;			//ACK ERROR
+		/*if((CAN1->ESR & 0x30)==0x30)
+			GPIOC->BSRR = 1<<13;			//ACK ERROR*/
+			;
 	}
 	
 }
