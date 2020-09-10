@@ -44,11 +44,11 @@ int main(void)
 		}
 		if(rxData[0]==10)
 		{
-			HAL_GPIO_WritePin(GPIOC,GPIO_PIN_13,GPIO_PIN_SET);			//LED ON
+			HAL_GPIO_WritePin(GPIOC,GPIO_PIN_13,GPIO_PIN_SET);		//LED ON
 			HAL_Delay(500);
 			HAL_GPIO_WritePin(GPIOC,GPIO_PIN_13,GPIO_PIN_RESET);		//LED OFF
 			HAL_Delay(500);
-			rxData[0]=0;																						//reset data
+			rxData[0]=0;							//reset data
 		}
    
   }
