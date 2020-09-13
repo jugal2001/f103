@@ -1,3 +1,6 @@
+/***RX CODE***/
+//resolution of 4 LSBs is lost (just to test)
+
 #include "main.h"
 
 CAN_HandleTypeDef hcan;								//struct containing CAN init settings
@@ -43,7 +46,7 @@ int main(void)
 		if(HAL_CAN_GetRxFifoFillLevel (&hcan, CAN_RX_FIFO0))						//checks if the number of messages in FIFO 0 is non zero
 		{
 			HAL_CAN_GetRxMessage(&hcan, CAN_RX_FIFO0, &RxMessage, rxData);//stores the data frame in RxMessage struct, stores data in rsData array
-			TIM4->CCR4 = rxData[0];     //8bit adc value recieved
+			TIM4->CCR4 = rxData[0]<<4;     //8bit adc value recieved
 			rxData[0]=0;
 		}
 		
@@ -128,7 +131,7 @@ void pwm_init()
 	TIM4 ->CR1 |= TIM_CR1_ARPE;
   TIM4 ->CCMR2 |= TIM_CCMR2_OC4M_2 | TIM_CCMR2_OC4M_1 | TIM_CCMR2_OC4PE; //mode
 	TIM4 ->PSC = 1;
-	TIM4 ->ARR = 255;
+	TIM4 ->ARR = 4095;
 	TIM4 ->CCR4 = 0;
 	TIM4 ->EGR = TIM_EGR_UG; //update registers
 	TIM4 ->CR1 = TIM_CR1_CEN; // start timer
