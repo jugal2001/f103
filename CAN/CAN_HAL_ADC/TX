@@ -2,7 +2,7 @@
 
 CAN_HandleTypeDef hcan;										//struct containing CAN init settings
 CAN_TxHeaderTypeDef TxMessage;						//struct for data frame to be transmitted
-uint8_t txData[8] = {250,0,0,0,0,0,0,0};		//dummy data array (8 bytes)
+uint8_t txData[8] = {0,0,0,0,0,0,0,0};		//dummy data array (8 bytes)
 uint32_t usedmailbox;											//indicates which mailbox was used to transmit the lastest message
 
 void SystemClock_Config(void);
@@ -12,7 +12,7 @@ void adc_init(void);
 
 void ADC1_2_IRQHandler(void)
 {
-	txData[0] = ADC1->DR>>2;		//fetch value at the end of conversion, automatically clears EOC interrupt bit
+	txData[0] = ADC1->DR>>4;		//fetch value at the end of conversion, automatically clears EOC interrupt bit
 	HAL_CAN_AddTxMessage(&hcan, &TxMessage, txData, &usedmailbox);
 }
 
