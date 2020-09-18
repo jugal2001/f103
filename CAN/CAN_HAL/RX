@@ -26,10 +26,10 @@ int main(void)
 	sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;		//filter set to mask and ID mode
 	sFilterConfig.FilterBank = 0;												//filter bank number 0 selected
   sFilterConfig.FilterFIFOAssignment = CAN_RX_FIFO0;	//assign filter bank to FIFO 0
-	sFilterConfig.FilterIdHigh = 0;											//MSB for ID
-  sFilterConfig.FilterIdLow = 7;											//LSB							
-  sFilterConfig.FilterMaskIdHigh = 0;									//MSB for mask
-  sFilterConfig.FilterMaskIdLow = 0;									//LSB
+	sFilterConfig.FilterIdHigh = 7<<5;			//STD ID value is 7, here shifted by 5 because 11 bits starting from the left are for STD ID (FilterIdHigh is 16bit)
+  sFilterConfig.FilterIdLow = 0;											//LSB							
+  sFilterConfig.FilterMaskIdHigh = 7<<5;			//0b111 shifted by 5 for the same reason, first 11 bits are for Identifier								
+  sFilterConfig.FilterMaskIdLow = 0;								//LSB	
   sFilterConfig.FilterActivation = ENABLE;						//activate filter
 	
 	HAL_CAN_ConfigFilter(&hcan,&sFilterConfig);					//commits filter settings
