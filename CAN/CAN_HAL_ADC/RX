@@ -29,10 +29,10 @@ int main(void)
 	sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;		//filter set to mask and ID mode
 	sFilterConfig.FilterBank = 0;												//filter bank number 0 selected
   sFilterConfig.FilterFIFOAssignment = CAN_RX_FIFO0;	//assign filter bank to FIFO 0
-	sFilterConfig.FilterIdHigh = 0;											//MSB for ID
-  sFilterConfig.FilterIdLow = 7;											//LSB							
-  sFilterConfig.FilterMaskIdHigh = 0;									//MSB for mask
-  sFilterConfig.FilterMaskIdLow = 0;									//LSB
+	sFilterConfig.FilterIdHigh = 7<<5;									
+  sFilterConfig.FilterIdLow = 0;															
+  sFilterConfig.FilterMaskIdHigh = 7<<5;							
+  sFilterConfig.FilterMaskIdLow = 0;							
   sFilterConfig.FilterActivation = ENABLE;						//activate filter
 	
 	
@@ -46,7 +46,7 @@ int main(void)
 		if(HAL_CAN_GetRxFifoFillLevel (&hcan, CAN_RX_FIFO0))						//checks if the number of messages in FIFO 0 is non zero
 		{
 			HAL_CAN_GetRxMessage(&hcan, CAN_RX_FIFO0, &RxMessage, rxData);//stores the data frame in RxMessage struct, stores data in rsData array
-			TIM4->CCR4 = rxData[0]<<4;     //8bit adc value recieved
+			TIM4->CCR4 = rxData[0]<<4;     //8bit value recieved (first 8 bits of the 12 bit adc value, 4 LSB resolution is lost)
 			rxData[0]=0;
 		}
 		
