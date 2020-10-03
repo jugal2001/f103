@@ -1,0 +1,98 @@
+//PA5 -> X axis
+//PA6 -> Y axis
+//transmitting 8 bits (w/ masking LSB)
+//mask scheme:
+//00 -> X low		01 -> X high
+//10 -> Y low		11 -> Y high
+#include "stm32f1xx.h"
+#include "mydelay.h"
+
+volatile uint16_t adcdata[2] = { 0, 0 };
+volatile uint8_t sendData[4] = { 0, 0, 0, 0 };
+void adc_init(void) {
+	RCC->CFGR |= RCC_CFGR_ADCPRE_DIV6;   			//adc prescaler /6 (<14mhz)
+	RCC->APB2ENR |= RCC_APB2ENR_ADC1EN; 				//clock enable for adc
+	//enable clock for DMA1
+	RCC->AHBENR |= RCC_AHBENR_DMA1EN;
+	// L[3:0] in ADC1_SQR1 TO SET THE NUMBER OF CONVERSIONS (here default 0000 - 1 conv)
+
+	ADC1->SQR1 |= ADC_SQR1_L_0;							//2 conversions
+	ADC1->SQR3 |= ADC_SQR3_SQ1_0 | ADC_SQR3_SQ1_2; 	//channel 5 in sequence 1
+	ADC1->SMPR2 |= ADC_SMPR2_SMP5_2; 		 		//set sampling rate (ch5)
+	ADC1->SQR3 |= ADC_SQR3_SQ2_1 | ADC_SQR3_SQ2_2; 	//channel 6 in sequence 2
+	ADC1->SMPR2 |= ADC_SMPR2_SMP6_2; 		 		//set sampling rate (ch6)
+
+	/*****DMA SETTINGS*****/
+	ADC1->CR2 |= ADC_CR2_DMA;							//enable DMA for ADC1
+	DMA1_Channel1->CNDTR = 2;
+	DMA1_Channel1->CMAR = (uint32_t) adcdata;
+	DMA1_Channel1->CPAR = (uint32_t) &(ADC1->DR);
+	DMA1_Channel1->CCR |= (DMA_CCR_CIRC | DMA_CCR_MINC | DMA_CCR_MSIZE_0
+			| DMA_CCR_PSIZE_0);
+	DMA1_Channel1->CCR |= DMA_CCR_EN;
+	/**********************/
+	ADC1->CR1 |= ADC_CR1_SCAN;
+	ADC1->CR2 |= ADC_CR2_ADON | ADC_CR2_CONT; //turn on adc and set it to continous conversion mode
+	delay_ms(1);
+	ADC1->CR2 |= ADC_CR2_ADON;
+	delay_ms(1);
+	ADC1->CR2 |= ADC_CR2_CAL;  		      		    //run calibration
+	delay_ms(5);
+}
+void uart_init(void) {
+	RCC->APB2ENR |= RCC_APB2ENR_USART1EN;  // enable clock for USART1
+	//baud rate = Fclk/(16*USARTDIV)
+	USART1->BRR |= 52 << 4; 			// ~~9600 baud
+	USART1->CR1 |= USART_CR1_TE | USART_CR1_UE;
+}
+
+int main() {
+	//enable clock for port A and AFIO
+	RCC->APB2ENR |= RCC_APB2ENR_AFIOEN | RCC_APB2ENR_IOPAEN;
+
+	//set up gpio A5 as analog input (pin A5-->adc channel 5)
+	GPIOA->CRL |= GPIO_CRL_CNF5_1;
+	GPIOA->CRL &= ~GPIO_CRL_CNF5_0;
+	GPIOA->CRL &= ~(GPIO_CRL_MODE5_0 | GPIO_CRL_MODE5_1);
+
+	//set up gpio A6 as analog input (pin A6-->adc channel 6)
+	GPIOA->CRL |= GPIO_CRL_CNF6_1;
+	GPIOA->CRL &= ~GPIO_CRL_CNF6_0;
+	GPIOA->CRL &= ~(GPIO_CRL_MODE6_0 | GPIO_CRL_MODE6_1);
+
+	//set up gpio A9 as output pushpull (USART1_TX)
+	GPIOA->CRH |= GPIO_CRH_MODE9 | GPIO_CRH_CNF9_1;
+	GPIOA->CRH &= ~GPIO_CRH_CNF9_0;
+
+	//set up gpio A10 as input (USART1_RX)  NOT REALLY REQUIRED HERE
+	GPIOA->CRH &= ~GPIO_CRH_MODE10;
+	GPIOA->CRH |= GPIO_CRH_CNF10_0;
+
+	//debug
+	RCC->APB2ENR |= 1 << 4;
+	GPIOC->CRH |= (1 << 21);
+	GPIOC->CRH &= ~((1 << 22) | (1 << 23));
+	adc_init();
+	uart_init();
+	int count = 0;
+	while (1) {
+		sendData[0] = (adcdata[0] & 0x3F);			// X LOW 6 BITS
+		sendData[1] = (adcdata[0] >> 6) & 0x3F;		// X HIGH 6 BITS
+
+
+		sendData[2] = (adcdata[1] & 0x3F);			// Y LOW 6 BITS
+		sendData[3] = (adcdata[1] >> 6) & 0x3F;		// Y HIGH 6 BITS
+
+													// X LOW MASK BITS ARE ALREADY 00
+		sendData[1] |= 0x40;						// X HIGH -> 01
+		sendData[2] |= 0x80;						// Y LOW  -> 10
+		sendData[3] |= 0xC0;						// Y HIGH -> 11
+		count = 0;
+		while (count < 4) {
+			USART1->DR = sendData[count];			//send our 4 bytes of data one by one
+			while (!(USART1->SR & USART_SR_TXE));	//wait for transmission
+			count++;
+		}
+		delay_ms(1);
+	}
+}
