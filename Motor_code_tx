@@ -18,9 +18,9 @@ void adc_init(void) {
 
 	ADC1->SQR1 |= ADC_SQR1_L_0;							//2 conversions
 	ADC1->SQR3 |= ADC_SQR3_SQ1_0 | ADC_SQR3_SQ1_2; 	//channel 5 in sequence 1
-	ADC1->SMPR2 |= ADC_SMPR2_SMP5_2; 		 		//set sampling rate (ch5)
+	ADC1->SMPR2 |= ADC_SMPR2_SMP5; 		 		//set sampling rate (ch5)
 	ADC1->SQR3 |= ADC_SQR3_SQ2_1 | ADC_SQR3_SQ2_2; 	//channel 6 in sequence 2
-	ADC1->SMPR2 |= ADC_SMPR2_SMP6_2; 		 		//set sampling rate (ch6)
+	ADC1->SMPR2 |= ADC_SMPR2_SMP6; 		 		//set sampling rate (ch6)
 
 	/*****DMA SETTINGS*****/
 	ADC1->CR2 |= ADC_CR2_DMA;							//enable DMA for ADC1
@@ -68,20 +68,27 @@ int main() {
 	GPIOA->CRH &= ~GPIO_CRH_MODE10;
 	GPIOA->CRH |= GPIO_CRH_CNF10_0;
 
-	//debug
-	RCC->APB2ENR |= 1 << 4;
-	GPIOC->CRH |= (1 << 21);
-	GPIOC->CRH &= ~((1 << 22) | (1 << 23));
 	adc_init();
 	uart_init();
+	int test[2];
 	int count = 0;
+
 	while (1) {
-		sendData[0] = (adcdata[0] & 0x3F);			// X LOW 6 BITS
-		sendData[1] = (adcdata[0] >> 6) & 0x3F;		// X HIGH 6 BITS
+
+		test[0] = adcdata[0]+10;
+		test[1] = adcdata[1];
 
 
-		sendData[2] = (adcdata[1] & 0x3F);			// Y LOW 6 BITS
-		sendData[3] = (adcdata[1] >> 6) & 0x3F;		// Y HIGH 6 BITS
+		if(test[0] >1700 && test[0] <2400)
+			test[0]= 2047;
+		if(test[1] >1800 && test[1] <2500)
+			test[1]= 2047;
+
+		sendData[0] = (test[0] & 0x3F);			// X LOW 6 BITS
+		sendData[1] = (test[0] >> 6) & 0x3F;		// X HIGH 6 BITS
+
+		sendData[2] = (test[1] & 0x3F);			// Y LOW 6 BITS
+		sendData[3] = (test[1] >> 6) & 0x3F;		// Y HIGH 6 BITS
 
 													// X LOW MASK BITS ARE ALREADY 00
 		sendData[1] |= 0x40;						// X HIGH -> 01
@@ -93,6 +100,6 @@ int main() {
 			while (!(USART1->SR & USART_SR_TXE));	//wait for transmission
 			count++;
 		}
-		delay_ms(1);
+		delay_ms(10);
 	}
 }
