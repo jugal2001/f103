@@ -1,9 +1,6 @@
 //PA5 -> X axis
 //PA6 -> Y axis
-//transmitting 8 bits (w/ masking LSB)
-//mask scheme:
-//00 -> X low		01 -> X high
-//10 -> Y low		11 -> Y high
+//0xC0 is the unique char sent at the start of every frame
 #include "stm32f1xx.h"
 #include "mydelay.h"
 
