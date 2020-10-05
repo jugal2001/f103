@@ -7,6 +7,8 @@ void adc_init(void)
 {
 	RCC->CFGR |= RCC_CFGR_ADCPRE_DIV6;   				//adc prescaler /6 (<14mhz)
 	RCC->APB2ENR |= RCC_APB2ENR_ADC1EN; 				//clock enable for adc
+	//enable clock for DMA1
+	RCC->AHBENR |= RCC_AHBENR_DMA1EN;
 	// L[3:0] in ADC1_SQR1 TO SET THE NUMBER OF CONVERSIONS (here default 0000 - 1 conv)
 
 	ADC1->SQR1 |= ADC_SQR1_L_0;							//2 conversions
@@ -53,9 +55,6 @@ int main()
  {
 	//enable clock for port A and B , and AFIO
 	RCC->APB2ENR |= RCC_APB2ENR_IOPBEN | RCC_APB2ENR_AFIOEN | RCC_APB2ENR_IOPAEN;
-
-	//enable clock for DMA1
-	RCC->AHBENR |= RCC_AHBENR_DMA1EN;
 
 	//set up gpio B9 alternate function output 10mhz max (CH4)
 	GPIOB->CRH &= ~(GPIO_CRH_CNF9_0);
