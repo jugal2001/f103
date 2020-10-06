@@ -1,0 +1,139 @@
+#include "main.h"
+
+CAN_HandleTypeDef hcan;					//struct containing CAN init settings
+CAN_TxHeaderTypeDef TxMessage;		//struct for data frame to be transmitted
+uint8_t txData[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };		//dummy data array (8 bytes)
+uint32_t usedmailbox;//indicates which mailbox was used to transmit the lastest message
+volatile uint16_t adcdata[2] = { 0, 0 };
+
+void SystemClock_Config(void);
+static void MX_GPIO_Init(void);
+static void MX_CAN_Init(void);
+
+void adc_init(void) {
+	RCC->CFGR |= RCC_CFGR_ADCPRE_DIV6;   			//adc prescaler /6 (<14mhz)
+	RCC->APB2ENR |= RCC_APB2ENR_ADC1EN; 				//clock enable for adc
+	// L[3:0] in ADC1_SQR1 TO SET THE NUMBER OF CONVERSIONS (here default 0000 - 1 conv)
+	//enable clock for DMA1
+	RCC->AHBENR |= RCC_AHBENR_DMA1EN;
+	ADC1->SQR1 |= ADC_SQR1_L_0;							//2 conversions
+	ADC1->SQR3 |= ADC_SQR3_SQ1_0 | ADC_SQR3_SQ1_2; 	//channel 5 in sequence 1
+	ADC1->SMPR2 |= ADC_SMPR2_SMP5_2; 		 		//set sampling rate (ch5)
+	ADC1->SQR3 |= ADC_SQR3_SQ2_1 | ADC_SQR3_SQ2_2; 	//channel 6 in sequence 2
+	ADC1->SMPR2 |= ADC_SMPR2_SMP6_2; 		 		//set sampling rate (ch6)
+
+	/*****DMA SETTINGS*****/
+	ADC1->CR2 |= ADC_CR2_DMA;							//enable DMA for ADC1
+	DMA1_Channel1->CNDTR = 2;
+	DMA1_Channel1->CMAR = (uint32_t) adcdata;
+	DMA1_Channel1->CPAR = (uint32_t) &(ADC1->DR);
+	DMA1_Channel1->CCR |= (DMA_CCR_CIRC | DMA_CCR_MINC | DMA_CCR_MSIZE_0
+			| DMA_CCR_PSIZE_0);
+	DMA1_Channel1->CCR |= DMA_CCR_EN;
+	/**********************/
+	ADC1->CR1 |= ADC_CR1_SCAN;
+	ADC1->CR2 |= ADC_CR2_ADON | ADC_CR2_CONT; //turn on adc and set it to continous conversion mode
+	HAL_Delay(1);
+	ADC1->CR2 |= ADC_CR2_ADON;
+	HAL_Delay(1);
+	ADC1->CR2 |= ADC_CR2_CAL;  		      		    //run calibration
+	HAL_Delay(5);
+}
+
+int main(void) {
+	HAL_Init();
+	SystemClock_Config();
+
+	MX_GPIO_Init();
+	MX_CAN_Init();
+	adc_init();
+	TxMessage.IDE = CAN_ID_STD;				//standard identifier format (11bit)
+	TxMessage.StdId = 0x7;									//identifier value
+	TxMessage.RTR = CAN_RTR_DATA;//indicates frame mode (data frame or remote frame)
+	TxMessage.DLC = 8;									//data length (8 bytes)
+	TxMessage.TransmitGlobalTime = DISABLE;	//time of transmission is not transmitted along with the data
+
+	HAL_CAN_Start(&hcan);	//start the CAN1 peripheral with our chosen settings
+
+	while (1) {
+		txData[0] = (uint8_t) adcdata[0] ;						// X LOW
+		txData[1] = (adcdata[0] >> 8) & 0x0F;		// X HIGH
+		txData[2] = (uint8_t) adcdata[1];						// Y LOW
+		txData[3] = (adcdata[1] >> 8) & 0x0F;		// Y HIGH
+		HAL_CAN_AddTxMessage(&hcan, &TxMessage, txData, &usedmailbox);		//send frame
+		HAL_Delay(20);
+	}
+
+}
+
+void SystemClock_Config(void)						//32mhz using HSE oscillator
+{
+	RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
+	RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
+
+	/** Initializes the CPU, AHB and APB busses clocks
+	 */
+	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+	RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+	RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
+	RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+	RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL4;
+	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
+		Error_Handler();
+	}
+	/** Initializes the CPU, AHB and APB busses clocks
+	 */
+	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
+			| RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+
+	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK) {
+		Error_Handler();
+	}
+}
+
+static void MX_CAN_Init(void)			//can settings
+{
+	__HAL_RCC_CAN1_CLK_ENABLE();
+
+	hcan.Instance = CAN1;
+	hcan.Init.Prescaler = 8;
+	hcan.Init.Mode = CAN_MODE_NORMAL;
+	hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
+	hcan.Init.TimeSeg1 = CAN_BS1_13TQ;
+	hcan.Init.TimeSeg2 = CAN_BS2_2TQ;
+	hcan.Init.TimeTriggeredMode = DISABLE;
+	hcan.Init.AutoBusOff = DISABLE;
+	hcan.Init.AutoWakeUp = DISABLE;
+	hcan.Init.AutoRetransmission = DISABLE;
+	hcan.Init.ReceiveFifoLocked = DISABLE;
+	hcan.Init.TransmitFifoPriority = DISABLE;
+	if (HAL_CAN_Init(&hcan) != HAL_OK) {
+		Error_Handler();
+	}
+}
+
+static void MX_GPIO_Init(void) {
+	/* GPIO Ports Clock Enable */
+	__HAL_RCC_GPIOA_CLK_ENABLE();
+	__HAL_RCC_AFIO_CLK_ENABLE();
+
+	//set up gpio A5 as analog input (pin A5-->adc channel 5)
+	GPIOA->CRL |= GPIO_CRL_CNF5_1;
+	GPIOA->CRL &= ~GPIO_CRL_CNF5_0;
+	GPIOA->CRL &= ~(GPIO_CRL_MODE5_0 | GPIO_CRL_MODE5_1);
+
+	//set up gpio A6 as analog input (pin A6-->adc channel 6)
+	GPIOA->CRL |= GPIO_CRL_CNF6_1;
+	GPIOA->CRL &= ~GPIO_CRL_CNF6_0;
+	GPIOA->CRL &= ~(GPIO_CRL_MODE6_0 | GPIO_CRL_MODE6_1);
+}
+
+void Error_Handler(void) {
+	;
+}
