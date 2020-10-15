@@ -1,0 +1,66 @@
+//SPI RX SLAVE full duplex
+//8Mhz
+#include "stm32f1xx.h"
+volatile int data = 0;
+
+void delay_ms(uint16_t ms)
+{
+    TIM3->ARR = ms;
+    TIM3->EGR = 1;
+    TIM3->CR1 |= TIM_CR1_CEN;
+    while (!(TIM3->SR & TIM_SR_UIF))
+        ;
+    TIM3->SR &= ~TIM_SR_UIF;
+}
+
+void spi_init()
+{
+    //enable clocks
+    RCC->APB2ENR |= RCC_APB2ENR_IOPAEN | RCC_APB2ENR_AFIOEN;
+
+    //these pins are floating input (default)
+    //NSS1 ----PA4
+    //SCK ----PA5
+    //MOSI ----PA7
+
+    //MISO ----PA6         AF output
+    GPIOA->CRL &= ~GPIO_CRL_CNF6;
+    GPIOA->CRL |= GPIO_CRL_CNF6_1;
+    GPIOA->CRL |= GPIO_CRL_MODE6_0;
+
+    RCC->APB2ENR |= RCC_APB2ENR_SPI1EN; //spi clock enable
+    SPI1->CR1 |= SPI_CR1_BR_0;          //baud rate
+    SPI1->CR1 &= ~SPI_CR1_MSTR;         //select slave mode
+    SPI1->CR1 |= SPI_CR1_SPE;           //enable spi
+}
+int main()
+{
+    //onboard LED pin C13
+    RCC->APB2ENR |= RCC_APB2ENR_IOPCEN;
+    GPIOC->CRH &= ~GPIO_CRH_CNF13;
+    GPIOC->CRH |= GPIO_CRH_MODE13_0;
+
+    //timer3 settings for delay
+    RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
+    TIM3->PSC = 8000;
+    TIM3->CR1 |= TIM_CR1_ARPE;
+    TIM3->CR1 |= TIM_CR1_OPM | TIM_CR1_URS;
+    spi_init();
+
+    while (1)
+    {
+        if (SPI1->SR & SPI_SR_RXNE)
+        {
+            data = SPI1->DR;
+            if (data == 10)
+            {
+                //blink
+                GPIOC->BSRR = 1 << 13;
+                delay_ms(500);
+                GPIOC->BSRR = 1 << (13 + 16);
+                delay_ms(500);
+                data = 0;
+            }
+        }
+    }
+}
