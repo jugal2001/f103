@@ -1,0 +1,54 @@
+#include "stm32f103xb.h"
+#include <stdarg.h>
+#include <string.h>
+#include <stdio.h>
+
+void uart_init(void) {
+	RCC->APB2ENR |= RCC_APB2ENR_AFIOEN | RCC_APB2ENR_IOPAEN;
+    //set up gpio A9 as output pushpull (USART1_TX)
+	GPIOA->CRH |= GPIO_CRH_MODE9 | GPIO_CRH_CNF9_1;
+	GPIOA->CRH &= ~GPIO_CRH_CNF9_0;
+
+    RCC->APB2ENR |= RCC_APB2ENR_USART1EN;  // enable clock for USART1
+	//baud rate = Fclk/(16*USARTDIV)
+	USART1->BRR |= 52 << 4; 			// ~~9600 baud
+	USART1->CR1 |= USART_CR1_TE | USART_CR1_UE;
+}
+void delay_ms(uint16_t ms)
+{
+	 TIM3 ->ARR=ms;
+	 TIM3 ->EGR =1;
+	 TIM3 ->CR1|=TIM_CR1_CEN;
+	 while(!(TIM3 ->SR & TIM_SR_UIF));
+     TIM3 ->SR &= ~TIM_SR_UIF;
+}
+static void print(char *msg,...)
+{
+    char buff[100];
+    va_list args;
+    va_start(args,msg);
+    vsprintf(buff,msg,args);
+    
+    for(int i=0 ; i <strlen(buff) ; i++)
+    {
+        USART1->DR = buff[i];
+		while (!(USART1->SR & USART_SR_TXE));
+    }
+}
+
+int main()
+{
+    uart_init();
+    RCC->APB1ENR|=RCC_APB1ENR_TIM3EN;
+    SystemCoreClockUpdate();
+	TIM3->PSC= (SystemCoreClock/1000);
+	TIM3->CR1|=TIM_CR1_ARPE;
+	TIM3->CR1|=TIM_CR1_OPM | TIM_CR1_URS ;int j=0;
+    while(1)
+    {
+        print("message number: %d \n",j);
+		delay_ms(1000);
+        j++;
+        
+    }
+}
