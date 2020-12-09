@@ -1,0 +1,84 @@
+#include "stm32f1xx.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+#include <stdarg.h>
+#include <string.h>
+#include <stdio.h>
+
+TaskHandle_t myTask1Handle = NULL;
+TaskHandle_t myTask2Handle = NULL;
+SemaphoreHandle_t printMutex;
+
+static void myTask1(void *arg);
+static void myTask2(void *arg);
+static void print(char *msg, ...);
+
+int main()
+{
+	SystemCoreClockUpdate();
+	RCC->APB2ENR |= RCC_APB2ENR_AFIOEN | RCC_APB2ENR_IOPAEN;
+	//set up gpio A9 as output pushpull (USART1_TX)
+	GPIOA->CRH |= GPIO_CRH_MODE9 | GPIO_CRH_CNF9_1;
+	GPIOA->CRH &= ~GPIO_CRH_CNF9_0;
+
+	RCC->APB2ENR |= RCC_APB2ENR_USART1EN; // enable clock for USART1
+	//baud rate = Fclk/(16*USARTDIV)
+	USART1->BRR |= 52 << 4; // ~~9600 baud
+	USART1->CR1 |= USART_CR1_TE | USART_CR1_UE;
+
+	printMutex = xSemaphoreCreateMutex();
+	xTaskCreate(myTask1, "task 1", 200, (void*) 0, 0, &myTask1Handle);
+	xTaskCreate(myTask2, "task 2", 200, (void*) 0, 0, &myTask2Handle);
+	vTaskStartScheduler();
+
+	while (1)
+	{
+		//useless
+	}
+}
+
+static void myTask1(void *arg)
+{
+	int count = 0;
+
+	while (1)
+	{
+		if (xSemaphoreTake(printMutex, portMAX_DELAY ) == 1)
+		{
+			print("Task 1 Message: %d\n", count++);
+			xSemaphoreGive(printMutex);
+		}
+		vTaskDelay(pdMS_TO_TICKS(1000));
+	}
+}
+
+static void myTask2(void *arg)
+{
+	int count = 0;
+	while (1)
+	{
+		if (xSemaphoreTake(printMutex, portMAX_DELAY ) == 1)
+		{
+			print("Task 2 Message: %d\n", count++);
+			xSemaphoreGive(printMutex);
+		}
+		vTaskDelay(pdMS_TO_TICKS(1000));
+	}
+}
+static void print(char *msg, ...)
+{
+	char buff[50];
+	va_list args;
+	va_start(args, msg);
+	vsprintf(buff, msg, args);
+
+	for (int i = 0; i < strlen(buff); i++)
+	{
+		USART1->DR = buff[i];
+		while (!(USART1->SR & USART_SR_TXE))
+			;
+
+	}
+}
+
