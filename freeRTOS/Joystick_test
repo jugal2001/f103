@@ -1,4 +1,4 @@
-//dummy FreeRTOS program to print the X and Y values from a joystick on a serial terminal at 256,000 baud/s
+//dummy FreeRTOS program to print the X and Y values from a joystick on a serial terminal at 256,000 baud/s, another task will print a dummy message every second
 //A5 , A6 -> Joystick
 //A9 -> UART1 TX
 
