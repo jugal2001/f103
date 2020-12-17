@@ -1,0 +1,41 @@
+//very very basic SW uart test, transmits 1 byte
+
+#include "stm32f1xx.h"
+#include "mydelay.h"
+uint8_t value;
+int flag;
+
+int main()
+{
+	RCC->APB2ENR |= 1 << 4;
+	GPIOC->CRH |= (1 << 21);
+	GPIOC->CRH &= ~((1 << 22) | (1 << 23));
+
+	RCC->APB2ENR |= RCC_APB2ENR_IOPAEN | RCC_APB2ENR_TIM1EN;
+	GPIOA->CRH &= ~GPIO_CRH_CNF9_0;
+	GPIOA->CRH |= GPIO_CRH_MODE9_1;
+	GPIOA->BSRR = 1 << (9);
+
+	while (1)
+	{
+		delay_ms(1000);
+    
+		flag = 0;
+		value = 0x1E;
+		GPIOA->BSRR = 1 << (9 + 16);
+		delay_us(90);
+		while (flag < 8)
+		{
+			if (value & 0x01)
+				GPIOA->BSRR = 1 << (9);
+			else
+				GPIOA->BSRR = 1 << (9 + 16);
+
+			value = value >> 1;
+			flag += 1;
+			delay_us(95);
+		}
+		GPIOA->BSRR = 1 << (9);
+
+	}
+}
