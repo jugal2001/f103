@@ -1,0 +1,93 @@
+#include "stm32f1xx.h"
+#include "mydelay.h"
+
+#include <stdarg.h>
+#include <string.h>
+#include <stdio.h>
+
+volatile int adc_val=0;
+void adc_init(void)
+{
+	RCC->CFGR |= RCC_CFGR_ADCPRE_DIV6;   				//adc prescaler /6 (<14mhz)
+	RCC->APB2ENR |= RCC_APB2ENR_ADC1EN; 				//clock enable for adc
+	ADC1->CR1 |= ADC_CR1_EOCIE;					//enable end of conversion interrupt
+	NVIC_EnableIRQ(ADC1_2_IRQn);
+
+	// L[3:0] in ADC1_SQR1 TO SET THE NUMBER OF CONVERSIONS (here default 0000 - 1 conv)
+
+	ADC1->SQR3 |= ADC_SQR3_SQ1_0 | ADC_SQR3_SQ1_2; 			//channel 5 in sequence 1
+	ADC1->SMPR2 |= ADC_SMPR2_SMP5_2; 		 		//set sampling rate (ch5)
+	ADC1->CR2  |= ADC_CR2_ADON | ADC_CR2_CONT;     			//turn on adc and set it to continous conversion mode
+	delay_ms(1);
+	ADC1->CR2  |= ADC_CR2_ADON;
+	delay_ms(1);
+	ADC1->CR2  |= ADC_CR2_CAL;  		      		        //run calibration
+	delay_ms(5);
+}
+void pwm_init(void)
+{
+	 RCC->APB1ENR |= RCC_APB1ENR_TIM4EN;
+	TIM4->CCER |= TIM_CCER_CC4E; 						//enable channel 4
+	TIM4->CR1 |= TIM_CR1_ARPE;
+  	TIM4->CCMR2 |= TIM_CCMR2_OC4M_2 | TIM_CCMR2_OC4M_1 | TIM_CCMR2_OC4PE;  //mode
+	TIM4->PSC = 1;
+	TIM4->ARR = 4095;
+	TIM4->CCR4 = 0;
+	TIM4->EGR = TIM_EGR_UG;  						// update registers
+	TIM4->CR1 = TIM_CR1_CEN; 						// start timer
+}
+void ADC1_2_IRQHandler(void)
+{
+	adc_val = ADC1->DR;		//fetch value at the end of conversion, automatically clears EOC interrupt bit
+}
+void uart_init(void) {
+	RCC->APB2ENR |= RCC_APB2ENR_AFIOEN | RCC_APB2ENR_IOPAEN;
+    //set up gpio A9 as output pushpull (USART1_TX)
+	GPIOA->CRH |= GPIO_CRH_MODE9 | GPIO_CRH_CNF9_1;
+	GPIOA->CRH &= ~GPIO_CRH_CNF9_0;
+
+    RCC->APB2ENR |= RCC_APB2ENR_USART1EN;  // enable clock for USART1
+	//baud rate = Fclk/(16*USARTDIV)
+	USART1->BRR |= 52 << 4; 			// ~~9600 baud
+	USART1->CR1 |= USART_CR1_TE | USART_CR1_UE;
+}
+static void print(char *msg,...)
+{
+    char buff[100];
+    va_list args;
+    va_start(args,msg);
+    vsprintf(buff,msg,args);
+
+    for(int i=0 ; i <strlen(buff) ; i++)
+    {
+        USART1->DR = buff[i];
+		while (!(USART1->SR & USART_SR_TXE));
+    }
+}
+int main()
+ {
+	//clock enable for port A and B , and AFIO
+	RCC->APB2ENR |= RCC_APB2ENR_IOPBEN | RCC_APB2ENR_AFIOEN | RCC_APB2ENR_IOPAEN;
+
+	//set up gpio B9 alternate function output 10mhz max
+	GPIOB->CRH &= ~(GPIO_CRH_CNF9_0);
+	GPIOB->CRH |= GPIO_CRH_MODE9_0 | GPIO_CRH_CNF9_1;
+
+	//set up gpio A5 as input (pin A5-->adc channel 5)
+	GPIOA->CRL |= GPIO_CRL_CNF5_1;
+	GPIOA->CRL &= ~GPIO_CRL_CNF5_0;
+	GPIOA->CRL &= ~(GPIO_CRL_MODE5_0 | GPIO_CRL_MODE5_1);
+
+	pwm_init();
+	adc_init();
+	uart_init();
+int j=0;
+while(1)
+{
+	TIM4->CCR4 = adc_val;
+	print("message number: %d \n",j);
+			delay_ms(1000);
+	        j++;
+}
+
+ }
