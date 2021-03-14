@@ -4,7 +4,8 @@
 #include <string.h>
 #include <stdio.h>
 
-uint16_t pwm = 4500;
+uint16_t pwm = 5000;
+
 //MACROS
 #define stop_swivel TIM2->CCR1 = 0;
 #define move_swivel TIM2->CCR1 = pwm;
@@ -20,6 +21,158 @@ uint16_t pwm = 4500;
 
 #define stop_gripper TIM3->CCR3 = 0;
 #define move_gripper TIM3->CCR3 = pwm;
+
+//function prototypes
+void GPIO_Initialize();
+void Timer_Initialize();
+void Drive(int DL, int DR, int a, int b, int p, int q, int X, int Y, float gear);
+void MotorCode(int x, int y, float g);
+void UART_Initilaize();
+
+uint8_t getuval();
+int Adjust(int k);
+
+int main() {
+	GPIO_Initialize();
+	Timer_Initialize();
+	UART_Initilaize();
+	uint8_t mode = 0;
+	int x = 0, y = 0;
+	float gear = 1.0;
+	int swivel = 0, link1 = 0;
+	int link2 = 0, roll = 0;
+	int gripper = 0, pitch = 0;
+	int trash = 0;
+	while (1) {
+		//Read LAN2UART Values
+		mode = getuval();
+		if (mode == 'a') {
+			if (getuval() == 's')		//SWIVEL
+					{
+				swivel = (getuval() - '0') * 10000 + (getuval() - '0') * 1000
+						+ (getuval() - '0') * 100 + (getuval() - '0') * 10
+						+ (getuval() - '0'); //x1 value
+				if (swivel == 0)
+					stop_swivel
+
+				else if (swivel == 16000) {
+					GPIOB->BSRR = 1 << 5;
+					move_swivel
+				}
+
+				else if (swivel == 16001) {
+					GPIOB->BSRR = 1 << (5 + 16);
+					move_swivel
+				}
+			}
+			if (getuval() == 'o')		//LINK1
+					{
+				link1 = (getuval() - '0') * 10000 + (getuval() - '0') * 1000
+						+ (getuval() - '0') * 100 + (getuval() - '0') * 10
+						+ (getuval() - '0'); //y1 value
+
+				link1 = Adjust(link1);
+				if (link1 < 0)
+					GPIOB->BSRR = 1 << 4;
+				else
+					GPIOB->BSRR = 1 << (4 + 16);
+				move_link1(abs(link1))
+			}
+			if (getuval() == 't')		//LINK2
+					{
+				link2 = (getuval() - '0') * 10000 + (getuval() - '0') * 1000
+						+ (getuval() - '0') * 100 + (getuval() - '0') * 10
+						+ (getuval() - '0'); //x2 value
+				link2 = Adjust(link2);
+				if (link2 < 0)
+					GPIOB->BRR |= 1 << (3);
+				else
+					GPIOB->ODR |= 1 << 3;
+
+				move_link2(abs(link2))
+			}
+			if (getuval() == 'r')		//ROLL
+					{
+				roll = (getuval() - '0') * 10000 + (getuval() - '0') * 1000
+						+ (getuval() - '0') * 100 + (getuval() - '0') * 10
+						+ (getuval() - '0'); //y2 value
+				if (roll == 0)
+					stop_roll
+
+				else if (roll == 16000) {
+					GPIOA->BSRR = 1 << (15 + 16);
+					move_roll
+				}
+
+				else if (roll == 16001) {
+					GPIOA->BSRR = 1 << 15;
+					move_roll
+				}
+			}
+			if (getuval() == 'p')		//PITCH
+					{
+				pitch = (getuval() - '0') * 10000 + (getuval() - '0') * 1000
+						+ (getuval() - '0') * 100 + (getuval() - '0') * 10
+						+ (getuval() - '0'); //Left Trigger
+
+				if (pitch == 0)
+					stop_pitch
+
+				else if (pitch == 16000) {
+					GPIOB->BSRR = 1 << (10 + 16);
+					move_pitch
+				} else if (pitch == 16001) {
+					GPIOB->BSRR = 1 << 10;
+					move_pitch
+				}
+			}
+			if (getuval() == 'g')		//GRIPPER
+					{
+				gripper = (getuval() - '0') * 10000 + (getuval() - '0') * 1000
+						+ (getuval() - '0') * 100 + (getuval() - '0') * 10
+						+ (getuval() - '0'); //Right Trigger
+				if (gripper == 0)
+					stop_gripper
+
+				else if (gripper == 16000) {
+					GPIOB->BSRR = 1 << (11 + 16);
+					move_gripper
+				} else if (gripper == 16001) {
+					GPIOB->BSRR = 1 << 11;
+					move_gripper
+				}
+			}
+
+			//ALLEN HEAD TBD
+
+		} else if (mode == 'm') {
+			gear = (int) ((getuval() - '0') + 1);   //Get gear value
+			if (getuval() == 's') {
+				x = (getuval() - '0') * 10000 + (getuval() - '0') * 1000
+						+ (getuval() - '0') * 100 + (getuval() - '0') * 10
+						+ (getuval() - '0');   //x value
+			}
+			if (getuval() == 'f') {
+				y = (getuval() - '0') * 10000 + (getuval() - '0') * 1000
+						+ (getuval() - '0') * 100 + (getuval() - '0') * 10
+						+ (getuval() - '0');   //y value
+			}
+			trash = getuval(); //This is actually Mast CAM values but we're ignoring it for now
+
+			x = Adjust(x);
+			y = Adjust(y);
+
+			MotorCode(x, y, gear);   //Run MotorCode
+		}
+
+		else {
+			trash = trash + 1 - 1;   //Bakchodi
+		}
+
+	}
+
+} 							//LINK1   //LINK2
+//Data Packets: a s <16001> o <16000> t <16000> r <16001> p <16001> g <16001>
 
 void GPIO_Initialize() {
 	//Enable Clocks:
@@ -312,149 +465,3 @@ int Adjust(int k) {
 		k = 0;
 	return k;
 }
-int main() {
-	GPIO_Initialize();
-	Timer_Initialize();
-	UART_Initilaize();
-	uint8_t mode = 0;
-	int x = 0, y = 0;
-	float gear = 1.0;
-	int swivel = 0, link1 = 0;
-	int link2 = 0, roll = 0;
-	int gripper = 0, pitch = 0;
-	int trash = 0;
-	//float gear = 1.0;
-	while (1) {
-		//Read LAN2UART Values
-
-		mode = getuval();
-		if (mode == 'a') {
-			if (getuval() == 's')		//SWIVEL
-					{
-				swivel = (getuval() - '0') * 10000 + (getuval() - '0') * 1000
-						+ (getuval() - '0') * 100 + (getuval() - '0') * 10
-						+ (getuval() - '0'); //x1 value
-				if (swivel == 0)
-					stop_swivel
-
-				else if (swivel == 16000) {
-					GPIOB->BSRR = 1 << 5;
-					move_swivel
-				}
-
-				else if (swivel == 16001) {
-					GPIOB->BSRR = 1 << (5 + 16);
-					move_swivel
-				}
-			}
-			if (getuval() == 'o')		//LINK1
-					{
-				link1 = (getuval() - '0') * 10000 + (getuval() - '0') * 1000
-						+ (getuval() - '0') * 100 + (getuval() - '0') * 10
-						+ (getuval() - '0'); //y1 value
-
-				link1 = Adjust(link1);
-				if (link1 < 0)
-					GPIOB->BSRR = 1 << 4;
-				else
-					GPIOB->BSRR = 1 << (4 + 16);
-				move_link1(abs(link1))
-			}
-			if (getuval() == 't')		//LINK2
-					{
-				link2 = (getuval() - '0') * 10000 + (getuval() - '0') * 1000
-						+ (getuval() - '0') * 100 + (getuval() - '0') * 10
-						+ (getuval() - '0'); //x2 value
-				link2 = Adjust(link2);
-				if (link2 < 0)
-					GPIOB->BRR |= 1 << (3);
-				else
-					GPIOB->ODR |= 1 << 3;
-
-				move_link2(abs(link2))
-			}
-			if (getuval() == 'r')		//ROLL
-					{
-				roll = (getuval() - '0') * 10000 + (getuval() - '0') * 1000
-						+ (getuval() - '0') * 100 + (getuval() - '0') * 10
-						+ (getuval() - '0'); //y2 value
-				if (roll == 0)
-					stop_roll
-
-				else if (roll == 16000) {
-					GPIOA->BSRR = 1 << (15 + 16);
-					move_roll
-				}
-
-				else if (roll == 16001) {
-					GPIOA->BSRR = 1 << 15;
-					move_roll
-				}
-			}
-			if (getuval() == 'p')		//PITCH
-					{
-				pitch = (getuval() - '0') * 10000 + (getuval() - '0') * 1000
-						+ (getuval() - '0') * 100 + (getuval() - '0') * 10
-						+ (getuval() - '0'); //Left Trigger
-
-				if (pitch == 0)
-					stop_pitch
-
-				else if (pitch == 16000) {
-					GPIOB->BSRR = 1 << (10 + 16);
-					move_pitch
-				} else if (pitch == 16001) {
-					GPIOB->BSRR = 1 << 10;
-					move_pitch
-				}
-			}
-			if (getuval() == 'g')		//GRIPPER
-					{
-				gripper = (getuval() - '0') * 10000 + (getuval() - '0') * 1000
-						+ (getuval() - '0') * 100 + (getuval() - '0') * 10
-						+ (getuval() - '0'); //Right Trigger
-				if (gripper == 0)
-					stop_gripper
-
-				else if (gripper == 16000) {
-					GPIOB->BSRR = 1 << (11 + 16);
-					move_gripper
-				} else if (gripper == 16001) {
-					GPIOB->BSRR = 1 << 11;
-					move_gripper
-				}
-			}
-
-			//ALLEN HEAD TBD
-		} else if (mode == 'm') {
-			gear = (int) ((getuval() - '0') + 1);   //Get gear value
-			if (getuval() == 's') {
-				x = (getuval() - '0') * 10000 + (getuval() - '0') * 1000
-						+ (getuval() - '0') * 100 + (getuval() - '0') * 10
-						+ (getuval() - '0');   //x value
-			}
-			if (getuval() == 'f') {
-				y = (getuval() - '0') * 10000 + (getuval() - '0') * 1000
-						+ (getuval() - '0') * 100 + (getuval() - '0') * 10
-						+ (getuval() - '0');   //y value
-			}
-			trash = getuval(); //This is actually Mast CAM values but we're ignoring it for now
-			x = x - 8000;
-			y = y - 8000;
-
-			if (abs(x) < 500)
-				x = 0;
-			if (abs(y) < 500)
-				y = 0;
-
-			MotorCode(x, y, gear);   //Run MotorCode
-		}
-
-		else {
-			trash = trash + 1 - 1;   //Bakchodi
-		}
-
-	}
-
-} 							//LINK1   //LINK2
-//Data Packets: a s <16001> o <16000> t <16000> r <16001> p <16001> g <16001>
